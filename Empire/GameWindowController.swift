@@ -67,12 +67,13 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
         // size the scroller knobs to reflect the ratio between the viewport
         // and the full map
         if let scene = spriteView.scene,
+           let mapLayer = scene.childNode(withName: "map") as? SKSpriteNode,
            let terrainLayer = scene.childNode(withName: "map/terrain") as? SKTileMapNode {
-            let mapHeight = terrainLayer.mapSize.height * terrainLayer.yScale.magnitude
+            let mapHeight = terrainLayer.mapSize.height * mapLayer.yScale.magnitude
             let spriteViewHeight = spriteView.frame.height
             verticalScroller.knobProportion = spriteViewHeight / mapHeight
             
-            let mapWidth = terrainLayer.mapSize.width * terrainLayer.xScale.magnitude
+            let mapWidth = terrainLayer.mapSize.width * mapLayer.xScale.magnitude
             let spriteViewWidth = spriteView.frame.width
             horizontalScroller.knobProportion = spriteViewWidth / mapWidth
             horizontalScroller.target = self
@@ -84,11 +85,11 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
         // scroll the map to match the scroller motion
         if scroller.hitPart == .knob,
            let scene = spriteView.scene,
-           let map = scene.childNode(withName: "map") as? SKSpriteNode,
+           let mapLayer = scene.childNode(withName: "map") as? SKSpriteNode,
            let terrainLayer = scene.childNode(withName: "map/terrain") as? SKTileMapNode {
-            let mapHeight = terrainLayer.mapSize.height * terrainLayer.yScale.magnitude
+            let mapHeight = terrainLayer.mapSize.height * mapLayer.yScale.magnitude
             let spriteViewHeight = spriteView.frame.height
-            map.position.y = (scroller.doubleValue - 0.5) * (mapHeight - spriteViewHeight)
+            mapLayer.position.y = (scroller.doubleValue - 0.5) * (mapHeight - spriteViewHeight)
         }
     }
     
@@ -96,11 +97,11 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
         // scroll the map to match the scroller motion
         if scroller.hitPart == .knob,
            let scene = spriteView.scene,
-           let map = scene.childNode(withName: "map") as? SKSpriteNode,
+           let mapLayer = scene.childNode(withName: "map") as? SKSpriteNode,
            let terrainLayer = scene.childNode(withName: "map/terrain") as? SKTileMapNode {
-            let mapWidth = terrainLayer.mapSize.width * terrainLayer.xScale.magnitude
+            let mapWidth = terrainLayer.mapSize.width * mapLayer.xScale.magnitude
             let spriteViewWidth = spriteView.frame.width
-            map.position.x = (0.5 - scroller.doubleValue) * (mapWidth - spriteViewWidth)
+            mapLayer.position.x = (0.5 - scroller.doubleValue) * (mapWidth - spriteViewWidth)
         }
     }
     
@@ -123,34 +124,34 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
         }
         
         if let scene = spriteView.scene,
-           let map = scene.childNode(withName: "map") as? SKSpriteNode,
+           let mapLayer = scene.childNode(withName: "map") as? SKSpriteNode,
            let terrainLayer = scene.childNode(withName: "map/terrain") as? SKTileMapNode {
-            let mapWidth = terrainLayer.mapSize.width * terrainLayer.xScale.magnitude
-            let mapHeight = terrainLayer.mapSize.height * terrainLayer.yScale.magnitude
+            let mapWidth = terrainLayer.mapSize.width * mapLayer.xScale.magnitude
+            let mapHeight = terrainLayer.mapSize.height * mapLayer.yScale.magnitude
             let spriteViewWidth = spriteView.frame.width
             let spriteViewHeight = spriteView.frame.height
             
             horizontalScroller.doubleValue = desiredX
             verticalScroller.doubleValue = desiredY
-            map.position.x = (0.5 - horizontalScroller.doubleValue) * (mapWidth - spriteViewWidth)
-            map.position.y = (verticalScroller.doubleValue - 0.5) * (mapHeight - spriteViewHeight)
+            mapLayer.position.x = (0.5 - horizontalScroller.doubleValue) * (mapWidth - spriteViewWidth)
+            mapLayer.position.y = (verticalScroller.doubleValue - 0.5) * (mapHeight - spriteViewHeight)
         }
     }
     
     override func scrollWheel(with event: NSEvent) {
         // handle two-finger scrolling
         if let scene = spriteView.scene,
-           let map = scene.childNode(withName: "map") as? SKSpriteNode,
+           let mapLayer = scene.childNode(withName: "map") as? SKSpriteNode,
            let terrainLayer = scene.childNode(withName: "map/terrain") as? SKTileMapNode {
             let spriteViewWidth = spriteView.frame.width
             let spriteViewHeight = spriteView.frame.height
-            let mapWidth = terrainLayer.mapSize.width * terrainLayer.xScale.magnitude
-            let mapHeight = terrainLayer.mapSize.height * terrainLayer.yScale.magnitude
+            let mapWidth = terrainLayer.mapSize.width * mapLayer.xScale.magnitude
+            let mapHeight = terrainLayer.mapSize.height * mapLayer.yScale.magnitude
 
             horizontalScroller.doubleValue -= (event.deltaX * 10) / mapWidth
             verticalScroller.doubleValue -= (event.deltaY * 10) / mapHeight
-            map.position.x = (0.5 - horizontalScroller.doubleValue) * (mapWidth - spriteViewWidth)
-            map.position.y = (verticalScroller.doubleValue - 0.5) * (mapHeight - spriteViewHeight)
+            mapLayer.position.x = (0.5 - horizontalScroller.doubleValue) * (mapWidth - spriteViewWidth)
+            mapLayer.position.y = (verticalScroller.doubleValue - 0.5) * (mapHeight - spriteViewHeight)
         }
     }
     
@@ -160,7 +161,6 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
         switch action {
         case .nothing:
             turn = turn + 1
-            print("turn \(turn)")
             DispatchQueue.main.async {
                 self.gameNextAction()
             }

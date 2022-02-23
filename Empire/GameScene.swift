@@ -26,6 +26,8 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
     func createMap(scale: Double) {
         let mapLayer = SKSpriteNode()
         mapLayer.name = "map"
+        mapLayer.xScale = scale
+        mapLayer.yScale = -scale
         
         if let game = game {
             let columns = game.map.width
@@ -35,8 +37,6 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
         
             let terrainLayer = SKTileMapNode(tileSet: gameTileSet, columns: columns, rows: rows, tileSize: tileSize)
             terrainLayer.name = "terrain"
-            terrainLayer.xScale = scale
-            terrainLayer.yScale = -scale
             mapLayer.addChild(terrainLayer)
   
             let seaTiles = gameTileSet.tileGroups.first { $0.name == "Sea" }
@@ -54,8 +54,6 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
         
             let unitLayer = SKTileMapNode(tileSet: gameTileSet, columns: columns, rows: rows, tileSize: tileSize)
             unitLayer.name = "units"
-            unitLayer.xScale = scale
-            unitLayer.yScale = -scale
             mapLayer.addChild(unitLayer)
 
             let cityTiles = gameTileSet.tileGroups.first { $0.name == "City" }
@@ -66,8 +64,6 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
             let blackTiles = gameTileSet.tileGroups.first { $0.name == "Black" }
             let coverLayer = SKTileMapNode(tileSet: gameTileSet, columns: columns, rows: rows, tileSize: tileSize)
             coverLayer.name = "cover"
-            coverLayer.xScale = scale
-            coverLayer.yScale = -scale
             coverLayer.fill(with: blackTiles)
             mapLayer.addChild(coverLayer)
 
@@ -103,7 +99,6 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
         // show the unit in focus
         if let unit = focusUnit,
            let unitLayer = childNode(withName: "map/units") as? SKTileMapNode {
-            print("yScale1 = \(unitLayer.yScale)")
             let gameTileSet = SKTileSet(named: "GameTileSet")!
             let unitTiles = gameTileSet.tileGroups.first { $0.name == String(describing: type(of: unit)) }
             unitLayer.setTileGroup(unitTiles, forColumn: unit.x, row: unit.y)
@@ -116,7 +111,6 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
         if let unit = focusUnit,
            let game = game,
            let unitLayer = childNode(withName: "map/units") as? SKTileMapNode {
-            print("yScale2 = \(unitLayer.yScale)")
             let gameTileSet = SKTileSet(named: "GameTileSet")!
             let city = game.units.filter({ $0 is City && $0.x == unit.x && $0.y == unit.y })
             if city.count > 0 {
@@ -139,8 +133,8 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
 
         if let mapLayer = childNode(withName: "map"),
            let terrainLayer = childNode(withName: "map/terrain") as? SKTileMapNode {
-            location.x = (location.x - mapLayer.position.x) / terrainLayer.xScale
-            location.y = (location.y - mapLayer.position.y) / terrainLayer.yScale
+            location.x = (location.x - mapLayer.position.x) / mapLayer.xScale
+            location.y = (location.y - mapLayer.position.y) / mapLayer.yScale
             let column = terrainLayer.tileColumnIndex(fromPosition: location)
             let row = terrainLayer.tileRowIndex(fromPosition: location)
             
@@ -158,14 +152,9 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
                 mapLayer.addChild(pointerSprite)
             }
             if let pointerSprite = mapLayer.childNode(withName: "pointer") as? SKSpriteNode {
-                var center = terrainLayer.centerOfTile(atColumn: column, row: row)
-                center.x *= terrainLayer.xScale
-                center.y *= terrainLayer.yScale
-                pointerSprite.position = center
-                
-                pointerSprite.xScale = terrainLayer.xScale * 2
-                pointerSprite.yScale = terrainLayer.yScale * 2
-                pointerSprite.run(SKAction.scale(to: terrainLayer.xScale, duration: 0.07))
+                pointerSprite.position = terrainLayer.centerOfTile(atColumn: column, row: row)
+                pointerSprite.setScale(2.0)
+                pointerSprite.run(SKAction.scale(to: 1.0, duration: 0.07))
             }
         }
     }
@@ -181,8 +170,8 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
         if let game = game,
            let mapLayer = childNode(withName: "map"),
            let terrainLayer = childNode(withName: "map/terrain") as? SKTileMapNode {
-            location.x = (location.x - mapLayer.position.x) / terrainLayer.xScale.magnitude
-            location.y = (location.y - mapLayer.position.y) / terrainLayer.yScale.magnitude
+            location.x = (location.x - mapLayer.position.x) / mapLayer.xScale.magnitude
+            location.y = (location.y - mapLayer.position.y) / mapLayer.yScale.magnitude
             let rows = game.map.height
             let column = terrainLayer.tileColumnIndex(fromPosition: location)
             let row = rows - terrainLayer.tileRowIndex(fromPosition: location) - 1
