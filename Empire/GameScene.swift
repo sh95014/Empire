@@ -10,11 +10,12 @@ import SpriteKit
 class GameScene: SKScene, NSGestureRecognizerDelegate {
     
     var game: Game?
+    var focusUnit: Unit?
     
     override func didMove(to view: SKView) {
         anchorPoint = CGPoint.zero
         
-        createMap(scale: 1)
+        createMap(scale: 2)
         
         let clickGestureRecognizer = NSClickGestureRecognizer(target: self, action: #selector(handleClick(recognizer:)))
         view.addGestureRecognizer(clickGestureRecognizer)
@@ -25,10 +26,10 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
     }
 
     func createMap(scale: Double) {
-        let map = SKSpriteNode()
-        map.name = "map"
-        map.anchorPoint = CGPoint.zero
-        map.position = CGPoint.zero
+        let mapLayer = SKSpriteNode()
+        mapLayer.name = "map"
+        mapLayer.anchorPoint = CGPoint.zero
+        mapLayer.position = CGPoint.zero
         
         if let game = game {
             let columns = game.map.width
@@ -40,7 +41,7 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
             terrainLayer.anchorPoint = CGPoint.zero
             terrainLayer.name = "terrain"
             terrainLayer.setScale(scale)
-            map.addChild(terrainLayer)
+            mapLayer.addChild(terrainLayer)
   
             let seaTiles = gameTileSet.tileGroups.first { $0.name == "Sea" }
             let landTiles = gameTileSet.tileGroups.first { $0.name == "Land" }
@@ -59,7 +60,7 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
             unitLayer.anchorPoint = CGPoint.zero
             unitLayer.name = "units"
             unitLayer.setScale(scale)
-            map.addChild(unitLayer)
+            mapLayer.addChild(unitLayer)
 
             let cityTiles = gameTileSet.tileGroups.first { $0.name == "City" }
             for city in game.units.filter({ $0 is City }) {
@@ -72,9 +73,9 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
             coverLayer.name = "cover"
             coverLayer.setScale(scale)
             coverLayer.fill(with: blackTiles)
-            map.addChild(coverLayer)
+            mapLayer.addChild(coverLayer)
 
-            addChild(map)
+            addChild(mapLayer)
             updateMap()
         }
     }
@@ -96,6 +97,42 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
         }
     }
     
+    func focus(_ unit: Unit) {
+        setPointer(column: unit.x, row: unit.y)
+        focusUnit = unit
+        focusTick()
+    }
+    
+    @objc func focusTick() {
+        if let unit = focusUnit,
+           let game = game,
+           let unitLayer = childNode(withName: "map/units") as? SKTileMapNode {
+            let rows = game.map.height
+            let gameTileSet = SKTileSet(named: "GameTileSet")!
+            let unitTiles = gameTileSet.tileGroups.first { $0.name == String(describing: type(of: unit)) }
+            unitLayer.setTileGroup(unitTiles, forColumn: unit.x, row: rows - unit.y - 1)
+            Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: #selector(focusTock), userInfo: nil, repeats: false)
+        }
+    }
+
+    @objc func focusTock() {
+        if let unit = focusUnit,
+           let game = game,
+           let unitLayer = childNode(withName: "map/units") as? SKTileMapNode {
+            let rows = game.map.height
+            let gameTileSet = SKTileSet(named: "GameTileSet")!
+            for city in game.units.filter({ $0 is City }) {
+                if city.x == unit.x && city.y == unit.y {
+                    let cityTiles = gameTileSet.tileGroups.first { $0.name == "City" }
+                    unitLayer.setTileGroup(cityTiles, forColumn: city.x, row: rows - city.y - 1)
+                } else {
+                    unitLayer.setTileGroup(nil, forColumn: city.x, row: rows - city.y - 1)
+                }
+            }
+            Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: #selector(focusTick), userInfo: nil, repeats: false)
+        }
+    }
+
     @objc func handleClick(recognizer: NSClickGestureRecognizer) {
         if recognizer.state != .ended {
             return
@@ -105,24 +142,29 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
         var location = convertPoint(fromView: recognizorLocation)
 
         if let game = game,
-           let map = childNode(withName: "map"),
+           let mapLayer = childNode(withName: "map"),
            let terrainLayer = childNode(withName: "map/terrain") as? SKTileMapNode {
-            location.x = (location.x - map.position.x) / terrainLayer.xScale
-            location.y = (location.y - map.position.y) / terrainLayer.yScale
+            location.x = (location.x - mapLayer.position.x) / terrainLayer.xScale
+            location.y = (location.y - mapLayer.position.y) / terrainLayer.yScale
             let column = terrainLayer.tileColumnIndex(fromPosition: location)
             let row = terrainLayer.tileRowIndex(fromPosition: location)
-//            let rows = game.map.height
             
-//            print("click \(column),\(row) \(worldMap[rows - row - 1][column])")
-            
-            // set pointer position, creating one if necessary
-            if map.childNode(withName: "pointer") == nil {
+            setPointer(column: column, row: game.map.height - row - 1)
+        }
+    }
+    
+    func setPointer(column: Int, row: Int) {
+        // set pointer position, creating one if necessary
+        if let game = game,
+           let mapLayer = childNode(withName: "map"),
+           let terrainLayer = childNode(withName: "map/terrain") as? SKTileMapNode {
+            if mapLayer.childNode(withName: "pointer") == nil {
                 let pointerSprite = SKSpriteNode(imageNamed: "pointer")
                 pointerSprite.name = "pointer"
-                map.addChild(pointerSprite)
+                mapLayer.addChild(pointerSprite)
             }
-            if let pointerSprite = map.childNode(withName: "pointer") as? SKSpriteNode {
-                var center = terrainLayer.centerOfTile(atColumn: column, row: row)
+            if let pointerSprite = mapLayer.childNode(withName: "pointer") as? SKSpriteNode {
+                var center = terrainLayer.centerOfTile(atColumn: column, row: game.map.height - row - 1)
                 center.x *= terrainLayer.xScale
                 center.y *= terrainLayer.yScale
                 pointerSprite.position = center
@@ -142,10 +184,10 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
         var location = convertPoint(fromView: recognizorLocation)
 
         if let game = game,
-           let map = childNode(withName: "map"),
+           let mapLayer = childNode(withName: "map"),
            let terrainLayer = childNode(withName: "map/terrain") as? SKTileMapNode {
-            location.x = (location.x - map.position.x) / terrainLayer.xScale
-            location.y = (location.y - map.position.y) / terrainLayer.yScale
+            location.x = (location.x - mapLayer.position.x) / terrainLayer.xScale
+            location.y = (location.y - mapLayer.position.y) / terrainLayer.yScale
             let rows = game.map.height
             let column = terrainLayer.tileColumnIndex(fromPosition: location)
             let row = rows - terrainLayer.tileRowIndex(fromPosition: location) - 1

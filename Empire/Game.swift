@@ -7,6 +7,12 @@
 
 import Foundation
 
+enum GameUI {
+    case nothing
+    case presentProductionMenu
+    case requestMovementOrder
+}
+
 class Game {
     
     let map = Map()
@@ -43,4 +49,33 @@ class Game {
         return players[currentPlayerIndex]
     }
 
+    func nextAction() -> (GameUI, Unit?) {
+        // see if any units need orders
+        for unit in units.filter({ $0.owner === currentPlayer }) {
+            if unit.order == nil {
+                if type(of: unit).canProduce() {
+                    return (.presentProductionMenu, unit)
+                } else {
+                    return (.requestMovementOrder, unit)
+                }
+            }
+        }
+        
+        // see if any orders need to be executed
+        for unit in units.filter({ $0.owner === currentPlayer }) {
+            if let produceOrder = unit.order as? ProduceUnitOrder {
+                produceOrder.turnsLeft = produceOrder.turnsLeft - 1
+                if produceOrder.turnsLeft <= 0 {
+                    // produced a new unit!
+                    let newUnit = produceOrder.unitType.init("NEW!", x: unit.x, y: unit.y)
+                    newUnit.owner = currentPlayer
+                    units.append(newUnit)
+                    unit.order = ProduceUnitOrder(produceOrder, unitType: produceOrder.unitType)
+                }
+            }
+        }
+        
+        return (.nothing, nil)
+    }
+    
 }
