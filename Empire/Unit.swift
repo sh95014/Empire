@@ -17,8 +17,12 @@ class Unit: UnitClassProtocol {
     var name: String
     var x: Int
     var y: Int
-    class var icon: String? { return nil }
+    var order: Order?
     
+    class var icon: String? { return nil }
+    class var initialProductionTurns: Int { 99999 }
+    class var subsequentProductionTurns: Int { 99999 }
+
     init(_ name: String, x: Int, y: Int) {
         self.owner = nil
         self.name = name
@@ -26,4 +30,25 @@ class Unit: UnitClassProtocol {
         self.y = y
     }
     
+    class func canProduce() -> Bool { false }
+    class func canMove(onto mapSquare: MapSquare) -> Bool { false }
+
+}
+
+class AirUnit: Unit {
+    
+    override class func canMove(onto mapSquare: MapSquare) -> Bool { true }
+
+}
+
+class LandUnit: Unit {
+    
+    override class func canMove(onto mapSquare: MapSquare) -> Bool { mapSquare == .land }
+
+}
+
+class SeaUnit: Unit {
+    
+    override class func canMove(onto mapSquare: MapSquare) -> Bool { mapSquare == .sea }
+
 }

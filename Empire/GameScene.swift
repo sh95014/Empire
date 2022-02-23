@@ -62,7 +62,7 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
             map.addChild(unitLayer)
 
             let cityTiles = gameTileSet.tileGroups.first { $0.name == "City" }
-            for city in game.cities {
+            for city in game.units.filter({ $0 is City }) {
                 unitLayer.setTileGroup(cityTiles, forColumn: city.x, row: rows - city.y - 1)
             }
             

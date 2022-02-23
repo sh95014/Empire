@@ -9,6 +9,7 @@ import Foundation
 
 class City: Unit {
     
-    override class var icon: String? { return "city" }
+    override class var icon: String? { "city" }
+    override class func canProduce() -> Bool { true }
 
 }

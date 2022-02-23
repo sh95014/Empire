@@ -10,7 +10,7 @@ import Foundation
 class Game {
     
     let map = Map()
-    var cities = Array<Unit>()
+    var units = Array<Unit>()
     var players = Array<Player>()
     var currentPlayerIndex: Int
     
@@ -21,17 +21,18 @@ class Game {
                 let x = Int.random(in: 0..<map.width)
                 let y = Int.random(in: 0..<map.height)
                 if map.squareAt(x: x, y: y) == .land {
-                    let city = City("City", x: x, y: y)
-                    cities.append(city)
+                    let city = City("City \(x)-\(y)", x: x, y: y)
+                    units.append(city)
                     break
                 }
             } while true
         }
         
         // give each player a starting city
-        for i in 0..<6 {
+        for i in 0..<1 {
             let player = Player(mapWidth: map.width, mapHeight: map.height)
-            player.capture(cities[i])
+            player.name = "Player \(i + 1)"
+            player.capture(units[i])
             players.append(player)
         }
         

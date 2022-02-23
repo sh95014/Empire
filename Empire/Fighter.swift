@@ -7,8 +7,10 @@
 
 import Foundation
 
-class Fighter: Unit {
+class Fighter: AirUnit {
     
-    override class var icon: String? { return "fighter" }
+    override class var icon: String? { "fighter" }
+    override class var initialProductionTurns: Int { 12 }
+    override class var subsequentProductionTurns: Int { 10 }
 
 }

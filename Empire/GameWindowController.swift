@@ -13,7 +13,9 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
     var game: Game!
     @IBOutlet var spriteView: SKView!
     @IBOutlet var verticalScroller: NSScroller!
-    @IBOutlet var horizontalScroller: NSScroller!
+    var horizontalScroller: NSScroller!
+    @IBOutlet var productionPanel: NSPanel!
+    var productionUnit: Unit?
     
     override var windowNibName: String! {
         return "GameWindow"
@@ -22,13 +24,12 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
     convenience init(_ game: Game) {
         self.init()
         self.loadWindow()
-        
         window?.delegate = self
+        spriteView.delegate = self
         
         self.game = game
         
-        spriteView.delegate = self
-        
+        // create the scene
         if let scene = SKScene(fileNamed: "GameScene") as? GameScene {
             scene.game = game
             scene.scaleMode = .resizeFill
@@ -38,30 +39,29 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
         spriteView.showsFPS = true
         spriteView.showsNodeCount = true
         
-        verticalScroller.doubleValue = 1
         verticalScroller.isEnabled = true
     
         // for some reason a NSScroller instantiated from nib refuses to go
         // horizontal, so we have to create this manually
         let scrollerWidth = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
         horizontalScroller = NSScroller.init(frame: CGRect(x: 0, y: 0, width: spriteView.frame.width, height: scrollerWidth))
-        window?.contentView?.addSubview(horizontalScroller)
-        
-        horizontalScroller.doubleValue = 0
         horizontalScroller.isEnabled = true
         horizontalScroller.autoresizingMask = [ .width ]
+        window?.contentView?.addSubview(horizontalScroller)
         
-        configureScrollers()
+        updateScrollers()
         
-        let city = game.cities[0]
-        scrollToCenter(x: city.x, y: city.y)
+        // start the game
+        gameNextAction()
     }
     
     func windowDidResize(_ notification: Notification) {
-        configureScrollers()
+        updateScrollers()
     }
     
-    func configureScrollers() {
+    func updateScrollers() {
+        // size the scroller knobs to reflect the ratio between the viewport
+        // and the full map
         if let scene = spriteView.scene,
            let terrainLayer = scene.childNode(withName: "map/terrain") as? SKTileMapNode {
             let mapWidth = terrainLayer.mapSize.width * terrainLayer.xScale
@@ -78,6 +78,7 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
     }
     
     @IBAction func didScrollVertically(_ scroller: NSScroller) {
+        // scroll the map to match the scroller motion
         if scroller.hitPart == .knob,
            let scene = spriteView.scene,
            let map = scene.childNode(withName: "map") as? SKSpriteNode,
@@ -89,6 +90,7 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
     }
     
     @objc func didScrollHorizontally(_ scroller: NSScroller) {
+        // scroll the map to match the scroller motion
         if scroller.hitPart == .knob,
            let scene = spriteView.scene,
            let map = scene.childNode(withName: "map") as? SKSpriteNode,
@@ -99,23 +101,8 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
         }
     }
     
-    func viewDidScroll(_ view: NSView, deltaX: Double, deltaY: Double) {
-        if let scene = spriteView.scene,
-           let map = scene.childNode(withName: "map") as? SKSpriteNode,
-           let terrainLayer = scene.childNode(withName: "map/terrain") as? SKTileMapNode {
-            horizontalScroller.doubleValue -= deltaX / 20
-            verticalScroller.doubleValue -= deltaY / 20
-            
-            let mapWidth = terrainLayer.mapSize.width * terrainLayer.xScale
-            let mapHeight = terrainLayer.mapSize.height * terrainLayer.yScale
-            let spriteViewWidth = spriteView.frame.width
-            let spriteViewHeight = spriteView.frame.height
-            map.position.x = -horizontalScroller.doubleValue * (mapWidth - spriteViewWidth)
-            map.position.y = -(1.0 - verticalScroller.doubleValue) * (mapHeight - spriteViewHeight)
-        }
-    }
-    
     func scrollToCenter(x: Int, y: Int) {
+        // scroll so that x, y would be centered in the window
         let visibleWidth = horizontalScroller.knobProportion * Double(game.map.width)
         var desiredX = (Double(x) - visibleWidth / 2.0) / (Double(game.map.width) - visibleWidth)
         if desiredX < 0.0 {
@@ -148,19 +135,70 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
     }
     
     override func scrollWheel(with event: NSEvent) {
-        if let view = window?.contentView {
-            viewDidScroll(view, deltaX: event.deltaX, deltaY: event.deltaY)
+        // handle two-finger scrolling
+        if let scene = spriteView.scene,
+           let map = scene.childNode(withName: "map") as? SKSpriteNode,
+           let terrainLayer = scene.childNode(withName: "map/terrain") as? SKTileMapNode {
+            horizontalScroller.doubleValue -= event.deltaX / 20
+            verticalScroller.doubleValue -= event.deltaY / 20
+            
+            let mapWidth = terrainLayer.mapSize.width * terrainLayer.xScale
+            let mapHeight = terrainLayer.mapSize.height * terrainLayer.yScale
+            let spriteViewWidth = spriteView.frame.width
+            let spriteViewHeight = spriteView.frame.height
+            map.position.x = -horizontalScroller.doubleValue * (mapWidth - spriteViewWidth)
+            map.position.y = -(1.0 - verticalScroller.doubleValue) * (mapHeight - spriteViewHeight)
         }
+    }
+    
+    func gameNextAction() {
+        let player = game.currentPlayer
+        
+        // see if any units need orders
+        for unit in game.units.filter({ $0.owner === player }) {
+            if unit.order == nil {
+                scrollToCenter(x: unit.x, y: unit.y)
+                if type(of: unit).canProduce() {
+                    productionPanel.title = unit.name
+                    productionPanel.orderFront(self)
+                    productionUnit = unit
+                    return
+                }
+            }
+        }
+        
+
+    }
+
+    @IBAction func setProduction(_ sender: NSButton) {
+        let unitTypes: [Unit.Type] = [ Army.self, Fighter.self,
+                                       AirTransport.self, Bomber.self,
+                                       Destroyer.self, SeaTransport.self,
+                                       Cruiser.self, Submarine.self,
+                                       AircraftCarrier.self ]
+        
+        if let productionUnit = self.productionUnit {
+            productionUnit.order = ProduceUnit(unitTypes[sender.tag - 1])
+        }
+    }
+    
+    @IBAction func finishSetProduction(_ sender: Any) {
+        productionPanel.orderOut(sender)
+        gameNextAction()
     }
     
 }
 
-extension ClosedRange {
-    
-    func clamp(_ value : Bound) -> Bound {
-        return self.lowerBound > value ? self.lowerBound
-            : self.upperBound < value ? self.upperBound
-            : value
+public class SharpImageView: NSImageView {
+
+    public override func draw(_ dirtyRect: NSRect) {
+        // disable interpolation for sharp "pixellated" look
+        if let image = self.image,
+           image.size.width <= dirtyRect.size.width && image.size.height <= dirtyRect.size.height {
+            NSGraphicsContext.current?.cgContext.interpolationQuality = .none
+        }
+        super.draw(dirtyRect)
+        NSGraphicsContext.current?.cgContext.interpolationQuality = .default
     }
-    
+
 }

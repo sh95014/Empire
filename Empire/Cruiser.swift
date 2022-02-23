@@ -7,8 +7,10 @@
 
 import Foundation
 
-class Cruiser: Unit {
+class Cruiser: SeaUnit {
     
-    override class var icon: String? { return "cruiser" }
+    override class var icon: String? { "cruiser" }
+    override class var initialProductionTurns: Int { 60 }
+    override class var subsequentProductionTurns: Int { 50 }
 
 }

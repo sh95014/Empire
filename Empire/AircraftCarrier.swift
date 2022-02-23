@@ -7,8 +7,10 @@
 
 import Foundation
 
-class AircraftCarrier: Unit {
+class AircraftCarrier: SeaUnit {
     
-    override class var icon: String? { return "carrier" }
+    override class var icon: String? { "carrier" }
+    override class var initialProductionTurns: Int { 72 }
+    override class var subsequentProductionTurns: Int { 60 }
 
 }
