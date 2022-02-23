@@ -16,6 +16,9 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
     var horizontalScroller: NSScroller!
     @IBOutlet var productionPanel: NSPanel!
     var productionUnit: Unit?
+    var designatedProduct: Int = 0
+    
+    var turn = 1
     
     override var windowNibName: String! {
         return "GameWindow"
@@ -160,17 +163,51 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
                 scrollToCenter(x: unit.x, y: unit.y)
                 if type(of: unit).canProduce() {
                     productionPanel.title = unit.name
+                    if let subviews = productionPanel.contentView?.subviews {
+                        let hasPort = game.map.hasPort(x: unit.x, y: unit.y)
+                        for view in subviews where 5...9 ~= view.tag {
+                            if let control = view as? NSControl {
+                                control.isEnabled = hasPort
+                            }
+                        }
+                    }
                     productionPanel.orderFront(self)
                     productionUnit = unit
+                    designatedProduct = 0
                     return
+                } else {
+                    
                 }
             }
         }
         
-
+        // see if any orders need to be executed
+        for unit in game.units.filter({ $0.owner === player }) {
+            if let produceOrder = unit.order as? ProduceUnitOrder {
+                produceOrder.turnsLeft = produceOrder.turnsLeft - 1
+                if produceOrder.turnsLeft <= 0 {
+                    // produced a new unit!
+                    let newUnit = produceOrder.unitType.init("NEW!", x: unit.x, y: unit.y)
+                    newUnit.owner = player
+                    game.units.append(newUnit)
+                    print(newUnit)
+                    unit.order = ProduceUnitOrder(produceOrder, unitType: produceOrder.unitType)
+                }
+            }
+        }
+        
+        turn = turn + 1
+        print("turn \(turn)")
+        DispatchQueue.main.async {
+            self.gameNextAction()
+        }
     }
 
     @IBAction func setProduction(_ sender: NSButton) {
+        designatedProduct = sender.tag
+    }
+    
+    @IBAction func finishSetProduction(_ sender: Any) {
         let unitTypes: [Unit.Type] = [ Army.self, Fighter.self,
                                        AirTransport.self, Bomber.self,
                                        Destroyer.self, SeaTransport.self,
@@ -178,11 +215,10 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
                                        AircraftCarrier.self ]
         
         if let productionUnit = self.productionUnit {
-            productionUnit.order = ProduceUnit(unitTypes[sender.tag - 1])
+            productionUnit.order = ProduceUnitOrder(productionUnit.order as? ProduceUnitOrder,
+                                               unitType: unitTypes[designatedProduct - 1])
         }
-    }
-    
-    @IBAction func finishSetProduction(_ sender: Any) {
+        
         productionPanel.orderOut(sender)
         gameNextAction()
     }

@@ -11,16 +11,22 @@ class Order {
     
 }
 
-class ProduceUnit: Order {
+class ProduceUnitOrder: Order {
     
     var unitType: Unit.Type
+    var turnsLeft: Int
     
-    init(_ unitType: Unit.Type) {
+    init(_ previousProduction: ProduceUnitOrder?, unitType: Unit.Type) {
         self.unitType = unitType
+        if (previousProduction?.unitType != unitType) {
+            turnsLeft = unitType.initialProductionTurns
+        } else {
+            turnsLeft = unitType.subsequentProductionTurns
+        }
     }
     
 }
 
-class Move: Order {
+class MoveOrder: Order {
     
 }

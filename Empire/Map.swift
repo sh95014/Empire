@@ -18,7 +18,23 @@ class Map {
     let height = 60
     
     func squareAt(x: Int, y: Int) -> MapSquare {
-        return worldMap[y][x] == "X" ? .land : .sea
+        worldMap[y][x] == "X" ? .land : .sea
+    }
+    
+    func hasPort(x: Int, y: Int) -> Bool {
+        // check the 8 surrounding squares to see if any of it is water
+        (x - 1 > 0 &&
+            ((y - 1 > 0      && squareAt(x: x - 1, y: y - 1) == .sea) ||
+             (                  squareAt(x: x - 1, y: y) == .sea) ||
+             (y + 1 < height && squareAt(x: x - 1, y: y + 1) == .sea))) ||
+
+        (y - 1 > 0           && squareAt(x: x, y: y - 1) == .sea) ||
+        (y + 1 < height      && squareAt(x: x, y: y + 1) == .sea) ||
+
+        (x + 1 < width &&
+            ((y - 1 > 0      && squareAt(x: x + 1, y: y - 1) == .sea) ||
+             (                  squareAt(x: x + 1, y: y) == .sea) ||
+             (y + 1 < height && squareAt(x: x + 1, y: y + 1) == .sea)))
     }
     
     private let worldMap = [

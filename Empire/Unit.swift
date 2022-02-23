@@ -23,7 +23,7 @@ class Unit: UnitClassProtocol {
     class var initialProductionTurns: Int { 99999 }
     class var subsequentProductionTurns: Int { 99999 }
 
-    init(_ name: String, x: Int, y: Int) {
+    required init(_ name: String, x: Int, y: Int) {
         self.owner = nil
         self.name = name
         self.x = x
