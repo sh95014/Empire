@@ -2,7 +2,7 @@
 //  Game.swift
 //  Empire
 //
-//  Created by Steven Huang on 2/21/22.
+//  Created by sh95014 on 2/21/22.
 //
 
 import Foundation
@@ -11,6 +11,7 @@ enum GameUI {
     case nothing
     case presentProductionMenu
     case requestMovementOrder
+    case moveUnit
 }
 
 class Game {
@@ -18,16 +19,18 @@ class Game {
     let map = Map()
     var units = Array<Unit>()
     var players = Array<Player>()
-    var currentPlayerIndex: Int
+    var currentPlayerIndex = 0
+    var turn: Int = 1
     
     init() {
         // create cities
         for _ in 0..<50 {
             repeat {
-                let x = Int.random(in: 0..<map.width)
-                let y = Int.random(in: 0..<map.height)
-                if map.squareAt(x: x, y: y) == .land {
-                    let city = City("City \(x)-\(y)", x: x, y: y)
+                let column = Int.random(in: 0..<map.width)
+                let row = Int.random(in: 0..<map.height)
+                if map.squareAt(column: column, row: row) == .land {
+                    let city = City("City \(column)-\(row)", column: column, row: row)
+                    city.canProduceShips = map.hasPort(column: column, row: row)
                     units.append(city)
                     break
                 }
@@ -41,8 +44,6 @@ class Game {
             player.capture(units[i])
             players.append(player)
         }
-        
-        currentPlayerIndex = 0
     }
     
     var currentPlayer: Player {
@@ -50,32 +51,58 @@ class Game {
     }
 
     func nextAction() -> (GameUI, Unit?) {
-        // see if any units need orders
+        print("nextAction()")
+        
+        // see if any unit need orders
         for unit in units.filter({ $0.owner === currentPlayer }) {
+            print("- \(unit)")
             if unit.order == nil {
                 if type(of: unit).canProduce() {
+                    print("-- needs production orders")
                     return (.presentProductionMenu, unit)
                 } else {
+                    print("-- needs movement orders")
                     return (.requestMovementOrder, unit)
                 }
-            }
-        }
-        
-        // see if any orders need to be executed
-        for unit in units.filter({ $0.owner === currentPlayer }) {
-            if let produceOrder = unit.order as? ProduceUnitOrder {
-                produceOrder.turnsLeft = produceOrder.turnsLeft - 1
-                if produceOrder.turnsLeft <= 0 {
-                    // produced a new unit!
-                    let newUnit = produceOrder.unitType.init("NEW!", x: unit.x, y: unit.y)
-                    newUnit.owner = currentPlayer
-                    units.append(newUnit)
-                    unit.order = ProduceUnitOrder(produceOrder, unitType: produceOrder.unitType)
+            } else if unit.order is SkipTurnOrder {
+                // head on to next turn without orders
+                print("-- skip turn")
+            } else if let produceUnitOrder = unit.order as? ProduceUnitOrder {
+                let turnsRequired = unit.hasProduced(produceUnitOrder.unitType) ?
+                    produceUnitOrder.unitType.subsequentProductionTurns :
+                    produceUnitOrder.unitType.initialProductionTurns
+                if turn - produceUnitOrder.turnStarted >= turnsRequired {
+                    if let newUnit = unit.produce() {
+                        newUnit.owner = currentPlayer
+                        units.append(newUnit)
+                        
+                        // automatically renew the production order
+                        unit.order = ProduceUnitOrder(produceUnitOrder.unitType, turn: turn)
+                        print("-- produced \(newUnit)")
+                    }
+                } else {
+                    let turnsLeft = turnsRequired - (turn - produceUnitOrder.turnStarted)
+                    print("-- \(turnsLeft) turns left to produce \(produceUnitOrder.unitType)")
+                }
+            } else if let moveOrder = unit.order as? MoveOrder {
+                if unit.column != moveOrder.column || unit.row != moveOrder.row {
+                    // keep moving
+                    print("-- keep moving towards (\(moveOrder.column), \(moveOrder.row))")
+                    return (.moveUnit, unit)
+                } else {
+                    // arrived
+                    print("-- arrived at (\(moveOrder.column), \(moveOrder.row))")
+                    unit.order = nil
                 }
             }
         }
         
         return (.nothing, nil)
+    }
+    
+    func nextTurn() {
+        turn += 1
+        print("nextTurn() - \(turn)")
     }
     
 }

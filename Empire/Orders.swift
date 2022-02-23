@@ -2,7 +2,7 @@
 //  Orders.swift
 //  Empire
 //
-//  Created by Steven Huang on 2/22/22.
+//  Created by sh95014 on 2/22/22.
 //
 
 import Foundation
@@ -14,19 +14,26 @@ class Order {
 class ProduceUnitOrder: Order {
     
     var unitType: Unit.Type
-    var turnsLeft: Int
+    var turnStarted: Int
     
-    init(_ previousProduction: ProduceUnitOrder?, unitType: Unit.Type) {
+    init(_ unitType: Unit.Type, turn: Int) {
         self.unitType = unitType
-        if (previousProduction?.unitType != unitType) {
-            turnsLeft = unitType.initialProductionTurns
-        } else {
-            turnsLeft = unitType.subsequentProductionTurns
-        }
+        turnStarted = turn
     }
     
 }
 
 class MoveOrder: Order {
     
+    var column: Int
+    var row: Int
+    
+    init(column: Int, row: Int) {
+        self.column = column
+        self.row = row
+    }
+    
+}
+
+class SkipTurnOrder: Order {
 }

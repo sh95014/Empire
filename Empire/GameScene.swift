@@ -2,7 +2,7 @@
 //  GameScene.swift
 //  Empire
 //
-//  Created by Steven Huang on 2/21/22.
+//  Created by sh95014 on 2/21/22.
 //
 
 import SpriteKit
@@ -11,6 +11,8 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
     
     var game: Game?
     var focusUnit: Unit?
+    var focusCallback: (() -> Void)?
+    var dragUnit: Unit?
     
     override func didMove(to view: SKView) {
         createMap(scale: 1.5)
@@ -43,7 +45,7 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
             let landTiles = gameTileSet.tileGroups.first { $0.name == "Land" }
             for row in 0..<rows {
                 for column in 0..<columns {
-                    switch game.map.squareAt(x: column, y: row) {
+                    switch game.map.squareAt(column: column, row: row) {
                     case .land:
                         terrainLayer.setTileGroup(landTiles, forColumn: column, row: row)
                     case .sea:
@@ -58,7 +60,7 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
 
             let cityTiles = gameTileSet.tileGroups.first { $0.name == "City" }
             for city in game.units.filter({ $0 is City }) {
-                unitLayer.setTileGroup(cityTiles, forColumn: city.x, row: city.y)
+                unitLayer.setTileGroup(cityTiles, forColumn: city.column, row: city.row)
             }
             
             let blackTiles = gameTileSet.tileGroups.first { $0.name == "Black" }
@@ -66,7 +68,7 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
             coverLayer.name = "cover"
             coverLayer.fill(with: blackTiles)
             mapLayer.addChild(coverLayer)
-
+            
             addChild(mapLayer)
             updateMap()
         }
@@ -89,8 +91,31 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
         }
     }
     
-    func focus(_ unit: Unit) {
-        setPointer(column: unit.x, row: unit.y)
+    func hideUnit(_ unit: Unit) {
+        if  let game = game,
+           let unitLayer = childNode(withName: "map/units") as? SKTileMapNode,
+           let gameTileSet = SKTileSet(named: "GameTileSet") {
+            let city = game.units.filter({ $0 is City && $0.column == unit.column && $0.row == unit.row })
+            if city.count > 0 {
+                let cityTiles = gameTileSet.tileGroups.first { $0.name == "City" }
+                unitLayer.setTileGroup(cityTiles, forColumn: unit.column, row: unit.row)
+            } else {
+                unitLayer.setTileGroup(nil, forColumn: unit.column, row: unit.row)
+            }
+        }
+    }
+    
+    func showUnit(_ unit: Unit) {
+        if let unitLayer = childNode(withName: "map/units") as? SKTileMapNode,
+           let gameTileSet = SKTileSet(named: "GameTileSet") {
+            let unitTiles = gameTileSet.tileGroups.first { $0.name == String(describing: type(of: unit)) }
+            unitLayer.setTileGroup(unitTiles, forColumn: unit.column, row: unit.row)
+        }
+    }
+    
+    func focus(_ unit: Unit, completion: @escaping () -> Void) {
+        focusCallback = completion
+        setPointer(column: unit.column, row: unit.row)
         focusUnit = unit
         focusTick()
     }
@@ -98,10 +123,10 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
     @objc func focusTick() {
         // show the unit in focus
         if let unit = focusUnit,
-           let unitLayer = childNode(withName: "map/units") as? SKTileMapNode {
-            let gameTileSet = SKTileSet(named: "GameTileSet")!
+           let unitLayer = childNode(withName: "map/units") as? SKTileMapNode,
+           let gameTileSet = SKTileSet(named: "GameTileSet") {
             let unitTiles = gameTileSet.tileGroups.first { $0.name == String(describing: type(of: unit)) }
-            unitLayer.setTileGroup(unitTiles, forColumn: unit.x, row: unit.y)
+            unitLayer.setTileGroup(unitTiles, forColumn: unit.column, row: unit.row)
             Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: #selector(focusTock), userInfo: nil, repeats: false)
         }
     }
@@ -110,14 +135,14 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
         // hide the unit in focus, either by showing the terrain below or a city
         if let unit = focusUnit,
            let game = game,
-           let unitLayer = childNode(withName: "map/units") as? SKTileMapNode {
-            let gameTileSet = SKTileSet(named: "GameTileSet")!
-            let city = game.units.filter({ $0 is City && $0.x == unit.x && $0.y == unit.y })
+           let unitLayer = childNode(withName: "map/units") as? SKTileMapNode,
+           let gameTileSet = SKTileSet(named: "GameTileSet") {
+            let city = game.units.filter({ $0 is City && $0.column == unit.column && $0.row == unit.row })
             if city.count > 0 {
                 let cityTiles = gameTileSet.tileGroups.first { $0.name == "City" }
-                unitLayer.setTileGroup(cityTiles, forColumn: unit.x, row: unit.y)
+                unitLayer.setTileGroup(cityTiles, forColumn: unit.column, row: unit.row)
             } else {
-                unitLayer.setTileGroup(nil, forColumn: unit.x, row: unit.y)
+                unitLayer.setTileGroup(nil, forColumn: unit.column, row: unit.row)
             }
             Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: #selector(focusTick), userInfo: nil, repeats: false)
         }
@@ -176,9 +201,54 @@ class GameScene: SKScene, NSGestureRecognizerDelegate {
             let column = terrainLayer.tileColumnIndex(fromPosition: location)
             let row = rows - terrainLayer.tileRowIndex(fromPosition: location) - 1
             
-            game.currentPlayer.visit(x: column, y: row)
+            game.currentPlayer.visit(column: column, row: row)
             updateMap()
         }
     }
+    
+    override func mouseDown(with event: NSEvent) {
+        if let mapLayer = childNode(withName: "map"),
+           let terrainLayer = childNode(withName: "map/terrain") as? SKTileMapNode {
+            let dragStartLocation = event.location(in: terrainLayer)
+            let dragStartColumn = terrainLayer.tileColumnIndex(fromPosition: dragStartLocation)
+            let dragStartRow = terrainLayer.tileRowIndex(fromPosition: dragStartLocation)
+            if let focusUnit = focusUnit,
+               focusUnit.column == dragStartColumn && focusUnit.row == dragStartRow {
+                let shapeLayer = SKShapeNode()
+                shapeLayer.name = "shape"
+                shapeLayer.strokeColor = NSColor.yellow
+                shapeLayer.lineWidth = 2
+                mapLayer.addChild(shapeLayer)
+            }
+        }
+    }
+    
+    override func mouseDragged(with event: NSEvent) {
+        if let shapeLayer = childNode(withName: "map/shape") as? SKShapeNode,
+           let terrainLayer = childNode(withName: "map/terrain") as? SKTileMapNode,
+           let focusUnit = focusUnit {
+            let path = CGMutablePath()
+            path.move(to: terrainLayer.centerOfTile(atColumn: focusUnit.column, row: focusUnit.row))
+            path.addLine(to: event.location(in: shapeLayer))
+            shapeLayer.path = path
+        }
+    }
 
+    override func mouseUp(with event: NSEvent) {
+        if let focusUnit = focusUnit,
+           let terrainLayer = childNode(withName: "map/terrain") as? SKTileMapNode,
+           let shapeLayer = childNode(withName: "map/shape") {
+            shapeLayer.removeFromParent()
+            
+            let endLocation = event.location(in: terrainLayer)
+            let endColumn = terrainLayer.tileColumnIndex(fromPosition: endLocation)
+            let endRow = terrainLayer.tileRowIndex(fromPosition: endLocation)
+            focusUnit.order = MoveOrder(column: endColumn, row: endRow)
+            self.focusUnit = nil
+            
+            focusCallback?()
+            focusCallback = nil
+        }
+    }
+    
 }

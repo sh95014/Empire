@@ -2,7 +2,7 @@
 //  GameWindowController.swift
 //  Empire
 //
-//  Created by Steven Huang on 2/21/22.
+//  Created by sh95014 on 2/21/22.
 //
 
 import Cocoa
@@ -18,8 +18,6 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
     @IBOutlet var productionPanel: NSPanel!
     var productionUnit: Unit?
     var designatedProduct: Int = 0
-    
-    var turn = 1
     
     override var windowNibName: String! {
         return "GameWindow"
@@ -56,7 +54,7 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
         updateScrollers()
         
         // start the game
-        gameNextAction()
+        resumeGameNextAction()
     }
     
     func windowDidResize(_ notification: Notification) {
@@ -105,10 +103,10 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
         }
     }
     
-    func scrollToCenter(x: Int, y: Int) {
-        // scroll so that x, y would be centered in the window
+    func scrollToCenter(column: Int, row: Int) {
+        // scroll so that row/column would be centered in the window
         let visibleWidth = horizontalScroller.knobProportion * Double(game.map.width)
-        var desiredX = (Double(x) - visibleWidth / 2.0) / (Double(game.map.width) - visibleWidth)
+        var desiredX = (Double(column) - visibleWidth / 2.0) / (Double(game.map.width) - visibleWidth)
         if desiredX < 0.0 {
             desiredX = 0.0
         } else if desiredX > 1.0 {
@@ -116,7 +114,7 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
         }
         
         let visibleHeight = verticalScroller.knobProportion * Double(game.map.height)
-        var desiredY = (Double(y) - visibleHeight / 2.0) / (Double(game.map.height) - visibleHeight)
+        var desiredY = (Double(row) - visibleHeight / 2.0) / (Double(game.map.height) - visibleHeight)
         if desiredY < 0.0 {
             desiredY = 0.0
         } else if desiredY > 1.0 {
@@ -155,38 +153,67 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
         }
     }
     
+    func resumeGameNextAction() {
+        DispatchQueue.main.async {
+            self.gameNextAction()
+        }
+    }
+    
     func gameNextAction() {
         let (action, unit) = game.nextAction()
         
+        var wait = false
+        
         switch action {
         case .nothing:
-            turn = turn + 1
-            DispatchQueue.main.async {
-                self.gameNextAction()
-            }
+            game.nextTurn()
         case .presentProductionMenu:
-            if let unit = unit {
-                scrollToCenter(x: unit.x, y: unit.y)
-                scene.setPointer(column: unit.x, row: unit.y)
+            if let unit = unit,
+               type(of: unit).canProduce() {
+                scrollToCenter(column: unit.column, row: unit.row)
+                scene.setPointer(column: unit.column, row: unit.row)
                 productionPanel.title = unit.name
                 if let subviews = productionPanel.contentView?.subviews {
-                    let hasPort = game.map.hasPort(x: unit.x, y: unit.y)
                     for view in subviews where 5...9 ~= view.tag {
                         if let control = view as? NSControl {
-                            control.isEnabled = hasPort
+                            control.isEnabled = unit.canProduceShips
                         }
                     }
                 }
                 productionPanel.orderFront(self)
                 productionUnit = unit
                 designatedProduct = 0
+                wait = true
             }
         case .requestMovementOrder:
             if let unit = unit {
-                scrollToCenter(x: unit.x, y: unit.y)
-                scene.focus(unit)
+                scrollToCenter(column: unit.column, row: unit.row)
+                scene.focus(unit, completion: resumeGameNextAction)
+                wait = true
+            }
+        case .moveUnit:
+            if let unit = unit,
+               let moveOrder = unit.order as? MoveOrder {
+                scene.hideUnit(unit)
+                if unit.row < moveOrder.row {
+                    unit.row += 1
+                } else if unit.row > moveOrder.row {
+                    unit.row -= 1
+                }
+                if unit.column < moveOrder.column {
+                    unit.column += 1
+                } else if unit.column > moveOrder.column {
+                    unit.column -= 1
+                }
+                game.currentPlayer.visit(column: unit.column, row: unit.row)
+                scene.updateMap()
+                scene.showUnit(unit)
             }
             break
+        }
+        
+        if !wait {
+            resumeGameNextAction()
         }
     }
 
@@ -202,12 +229,11 @@ class GameWindowController: NSWindowController, NSWindowDelegate, SKViewDelegate
                                        AircraftCarrier.self ]
         
         if let productionUnit = self.productionUnit {
-            productionUnit.order = ProduceUnitOrder(productionUnit.order as? ProduceUnitOrder,
-                                               unitType: unitTypes[designatedProduct - 1])
+            productionUnit.order = ProduceUnitOrder(unitTypes[designatedProduct - 1], turn: game.turn)
         }
         
         productionPanel.orderOut(sender)
-        gameNextAction()
+        resumeGameNextAction()
     }
     
 }
